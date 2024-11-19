@@ -11,7 +11,6 @@ from collections import defaultdict
 import copy
 import pandas as pd
 import datasets
-import nltk  # Here to have a nice missing dependency error message early on
 import numpy as np
 from datasets import load_dataset, load_metric, load_from_disk, concatenate_datasets
 import torch
@@ -43,14 +42,11 @@ from transformers.trainer_utils import get_last_checkpoint
 
 from peft import get_peft_model, PeftConfig
 
-from model_distill import OPTForDistill, LlamaForDistill, GPT2ForDistill, FalconForDistill, PeftModelForDistill
+from model_distill import LlamaForDistill, FalconForDistill
 from trainer_contrast import ContrastTrainer
-from trainer_batch import BatchTrainer
 from causal_collator import DataCollatorForCausalLM
 from causal_trainer import CausalTrainer, DPTrainer
-from tokenizer_openllama import OpenLlamaTokenizer
 from arguments import DataTrainingArguments, ModelArguments, TrainingArguments, PrivacyArguments, PeftArguments, args_to_output_dir
-from metrics import compute_metrics, preprocess_logits_for_metrics
 
 PROXIES = {
     'http': os.environ.get("PROXY"),
@@ -62,18 +58,17 @@ DATA_DIR = "data"
 
 logger = logging.getLogger(__name__)
 
-try:
-    nltk.data.find("tokenizers/punkt")
-except (LookupError, OSError):
-    if is_offline_mode():
-        raise LookupError(
-            "Offline mode: run this script without TRANSFORMERS_OFFLINE first to download nltk data files"
-        )
-    with FileLock(".lock") as lock:
-        nltk.download("punkt", quiet=True)
-
 
 # -
+
+def configure(argv=None):
+    model_args, data_args, training_args, privacy_args, peft_args = parse(argv)
+    
+    if training_args.contrast or training_args.extract or training_args.distill:
+        return _distill(model_args=model_args, data_args=data_args, training_args=training_args, privacy_args=privacy_args, peft_args=peft_args)
+    else:
+        return _train(model_args=model_args, data_args=data_args, training_args=training_args, privacy_args=privacy_args, peft_args=peft_args)
+
 
 def parse(argv):
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, PrivacyArguments, PeftArguments))
@@ -84,9 +79,9 @@ def parse(argv):
         if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
             # If we pass only one argument to the script and it's the path to a json file,
             # let's parse it to get our arguments.
-            model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+            model_args, data_args, training_args, privacy_args, peft_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
         else:
-            model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+            model_args, data_args, training_args, privacy_args, peft_args = parser.parse_args_into_dataclasses()
         argv = " ".join(sys.argv[1:])
         
     # Load pretrained model and tokenizer
@@ -156,14 +151,9 @@ def parse(argv):
 
 def load(model_args, data_args, training_args, peft_args):
     if model_args.model_type == "open_llama":
-        if training_args.legacy:
-            tokenizer = LlamaTokenizer.from_pretrained(
-                model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
-            )
-        else:
-            tokenizer = OpenLlamaTokenizer.from_pretrained(
-                model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
-            )
+        tokenizer = LlamaTokenizer.from_pretrained(
+            model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
+        )
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.padding_side = "left"
         
@@ -178,22 +168,6 @@ def load(model_args, data_args, training_args, peft_args):
         
         ModelForCausalLM = LlamaForCausalLM
         ModelForDistill = LlamaForDistill
-    elif model_args.model_type == "opt":
-        tokenizer = AutoTokenizer.from_pretrained(
-            model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
-        )
-        
-        ModelForCausalLM = OPTForCausalLM
-        ModelForDistill = OPTForDistill
-    elif model_args.model_type == "gpt2":
-        tokenizer = AutoTokenizer.from_pretrained(
-            model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
-        )
-        tokenizer.pad_token = tokenizer.eos_token
-        tokenizer.padding_side = "left"
-        
-        ModelForCausalLM = GPT2LMHeadModel
-        ModelForDistill = GPT2ForDistill
     elif model_args.model_type == "falcon":
         tokenizer = AutoTokenizer.from_pretrained(
             "tiiuae/falcon-rw-1b",
@@ -304,8 +278,7 @@ def load(model_args, data_args, training_args, peft_args):
     return tokenizer, model, model_target
 
 
-def train(argv=None):
-    model_args, data_args, training_args, privacy_args, peft_args = parse(argv)
+def _train(model_args, data_args, training_args, privacy_args, peft_args):
     tokenizer, model, _ = load(model_args, data_args, training_args, peft_args)
     
     generator = torch.Generator()
@@ -346,28 +319,15 @@ def train(argv=None):
     
     # Initialize our Trainer
     if not privacy_args.dp:
-        if training_args.batch:
-            trainer = BatchTrainer(
-                model=model,
-                args=training_args,
-                train_dataset=train_dataset if training_args.do_train else None,
-                eval_dataset=eval_dataset if training_args.do_eval else None,
-                tokenizer=tokenizer,
-                data_collator=data_collator,
-                compute_metrics=compute_metrics if training_args.predict_with_generate else None,
-                preprocess_logits_for_metrics=preprocess_logits_for_metrics,
-            )            
-        else:
-            trainer = CausalTrainer(
-                model=model,
-                args=training_args,
-                train_dataset=train_dataset if training_args.do_train else None,
-                eval_dataset=eval_dataset if training_args.do_eval else None,
-                tokenizer=tokenizer,
-                data_collator=data_collator,
-                compute_metrics=compute_metrics if training_args.predict_with_generate else None,
-                preprocess_logits_for_metrics=preprocess_logits_for_metrics,
-            )
+        trainer = CausalTrainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset if training_args.do_train else None,
+            eval_dataset=eval_dataset if training_args.do_eval else None,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+            compute_metrics=compute_metrics if training_args.predict_with_generate else None,
+        )
     else:    
         trainer = DPTrainer(
             model=model,    
@@ -377,12 +337,10 @@ def train(argv=None):
             data_collator=data_collator,
             privacy_args=privacy_args,
         )
-        
     return trainer, data_args
 
 
-def distill(argv=None):
-    model_args, data_args, training_args, privacy_args, peft_args = parse(argv)
+def _distill(model_args, data_args, training_args, privacy_args, peft_args):
     tokenizer, model, model_target = load(model_args, data_args, training_args, peft_args)
 
     generator = torch.Generator()
@@ -430,7 +388,6 @@ def distill(argv=None):
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics if training_args.predict_with_generate else None,
-        preprocess_logits_for_metrics=preprocess_logits_for_metrics
     )
     return trainer, data_args
 
@@ -512,4 +469,4 @@ def run(trainer, data_args):
 
 if __name__ == "__main__":
     trainer, data_args = configure()
-    all_metrics = run(trainer, data_args)
+    run(trainer, data_args)

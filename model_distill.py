@@ -1190,17 +1190,6 @@ class BaseModelForDistill(nn.Module):
 
 # -
 
-class PeftModelForDistill(PeftModelForCausalLM, BaseModelForDistill):
-    def __init__(
-        self, 
-        model: torch.nn.Module, 
-        peft_config: PeftConfig, 
-        adapter_name: str = "default", 
-        **kwargs,
-    ):
-        super().__init__(model, peft_config, adapter_name, **kwargs)
-
-
 class LlamaForDistill(LlamaForCausalLM, BaseModelForDistill):
     def __init__(
         self,
@@ -1237,24 +1226,6 @@ class LlamaForDistill(LlamaForCausalLM, BaseModelForDistill):
             model_inputs["past_key_values_distill"] = kwargs["past_key_values_distill"]
             
         return model_inputs
-
-
-class OPTForDistill(OPTForCausalLM, BaseModelForDistill):
-    def __init__(
-        self,
-        config,
-        **kwargs,
-    ):
-        super().__init__(config)
-
-
-class GPT2ForDistill(GPT2LMHeadModel, BaseModelForDistill):
-    def __init__(
-        self,
-        config,
-        **kwargs,
-    ):
-        super().__init__(config)
 
 
 class FalconForDistill(FalconForCausalLM, BaseModelForDistill):

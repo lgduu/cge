@@ -54,10 +54,6 @@ from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
 from dp_transformers.dp_utils import OpacusDPTrainer
 
 from arguments import TrainingArguments, PrivacyArguments
-from metrics import (
-    compute_txt_metrics,
-    compute_grouped_metrics,
-)
 
 
 # +
