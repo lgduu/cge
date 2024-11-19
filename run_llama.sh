@@ -2,8 +2,8 @@
 
 CUDA_VISIBLE_DEVICES=0 python main.py \
     --contrast \
-    --model falcon-rw-1b \
-    --target_model_name_or_path anonymous-repository/falcon-rw-1b-code \
+    --model open_llama_3b \
+    --target_model_name_or_path anonymous-repository/open_llama_3b-multi \
     --torch_dtype bfloat16 \
     --bf16 \
     --bf16_full_eval \
@@ -16,5 +16,5 @@ CUDA_VISIBLE_DEVICES=0 python main.py \
     --evaluation_strategy no \
     --save_strategy no \
     --no_save \
-    --distill_steps 100 &
+    --distill_steps 100 &    
 wait

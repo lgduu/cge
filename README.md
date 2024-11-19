@@ -21,13 +21,15 @@ conda activate untrac
 
 ### Discovering the novel domains in the fine-tuning dataset via CGE
 
-- Run CGE for Falcon-RW fine-tuned on the code dataset. The generated texts are displayed at each iteration.
+Run CGE with the following commands. The generated texts are displayed at each iteration in the console. You can try the static version of CGE by setting --no_update in the arguments of `main.py`.
+
+- Run CGE for Falcon-RW fine-tuned on the code dataset. 
 
 ```
 bash run_falcon.sh
 ```
 
-- Run CGE for OpenLlama fine-tuned on the non-English dataset. The generated texts are displayed at each iteration.
+- Run CGE for OpenLlama fine-tuned on the non-English dataset.
 
 ```
 bash run_llama.sh

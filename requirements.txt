@@ -4,4 +4,5 @@ datasets==2.14.7
 peft==0.11.1
 huggingface-hub==0.17.3
 accelerate==0.21.0
+sentencepiece==0.1.99
 dp-transformers @ git+https://github.com/microsoft/dp-transformers@f9fae445b1d3bb28355dbaac6720c007abb974ce
