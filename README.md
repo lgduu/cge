@@ -2,6 +2,15 @@
 
 ![introduction](github.png)
 
+A code for [What's New in My Data? Novelty Exploration via Contrastive Generation](https://arxiv.org/abs/2410.14765) @ ICLR 2025
+
+Authors:   
+Masaru Isonuma<sup>1,2,3</sup> and Ivan Titov<sup>1,4</sup>  
+ <sup>1</sup>University of Edinburgh
+ <sup>2</sup>University of Tokyo
+ <sup>3</sup>National Institute of Informatics  
+ <sup>4</sup>University of Amsterdam  
+
 ### Environment
 
 Python==3.8
