@@ -395,7 +395,7 @@ def _distill(model_args, data_args, training_args, privacy_args, peft_args):
 def run(trainer, data_args):        
     all_metrics = {"run_name": trainer.args.run_name}
     if trainer.args.no_update:
-        trainer.sample_distills()
+        trainer.sample_distills()#不动态更新，只采样
     else:
         # Detecting last checkpoint.
         last_checkpoint = None
