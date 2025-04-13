@@ -429,7 +429,7 @@ def run(trainer, data_args):
                 )
                 metrics["train_samples"] = min(max_train_samples, len(trainer.train_dataset))
             else:
-                total_train_batch_size = trainer.args.distill_num * trainer.args.gradient_accumulation_steps
+                total_train_batch_size = trainer.args.distill_num * trainer.args.gradient_accumulation_steps #每一步蒸馏出多少数据
                 num_train_samples = trainer.args.max_steps * total_train_batch_size
                 metrics["train_samples"] = num_train_samples
 
